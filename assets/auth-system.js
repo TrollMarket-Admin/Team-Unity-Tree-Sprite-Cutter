@@ -3,13 +3,50 @@
   const DELETED_KEY = 'team-unity-deleted-users';
   const SESSION_KEY = 'team-unity-current-user';
   const DEFAULT_NAME_COLOR = '#f59e0b';
+  const AUTH_API_URL = (root.AUTH_API_URL || '/api/auth/state');
 
   function getMemory() {
     root.__teamUnityAuthMemory = root.__teamUnityAuthMemory || {};
     return root.__teamUnityAuthMemory;
   }
 
+  function readSharedState() {
+    if (typeof XMLHttpRequest === 'undefined' || !/^https?:\/\//i.test(AUTH_API_URL) && AUTH_API_URL.charAt(0) !== '/') {
+      return null;
+    }
+
+    try {
+      const request = new XMLHttpRequest();
+      request.open('GET', AUTH_API_URL, false);
+      request.setRequestHeader('Accept', 'application/json');
+      request.send();
+      if (request.status >= 200 && request.status < 300) {
+        const state = JSON.parse(request.responseText);
+        return { users: state.users || {}, deletedUsers: state.deletedUsers || {} };
+      }
+    } catch (error) {
+      // Use the browser store while the shared service is unavailable.
+    }
+
+    return null;
+  }
+
+  function writeSharedState(users, deletedUsers) {
+    try {
+      const request = new XMLHttpRequest();
+      request.open('PUT', AUTH_API_URL, false);
+      request.setRequestHeader('Content-Type', 'application/json');
+      request.send(JSON.stringify({ users, deletedUsers }));
+      return request.status >= 200 && request.status < 300;
+    } catch (error) {
+      return false;
+    }
+  }
+
   function persistDeletedUsers(data) {
+    const state = readSharedState();
+    if (state && writeSharedState(state.users, data)) return true;
+
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(DELETED_KEY, JSON.stringify(data));
@@ -24,6 +61,9 @@
   }
 
   function safeRead() {
+    const sharedState = readSharedState();
+    if (sharedState) return sharedState.users;
+
     try {
       if (typeof localStorage !== 'undefined') {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -37,6 +77,9 @@
   }
 
   function safeWrite(data) {
+    const sharedState = readSharedState();
+    if (sharedState && writeSharedState(data, sharedState.deletedUsers)) return true;
+
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));

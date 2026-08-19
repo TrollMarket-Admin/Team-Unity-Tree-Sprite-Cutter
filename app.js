@@ -1005,8 +1005,23 @@ function getPolygonAlphaFactor(point, vertices) {
   return 1.0 - (minDist / edgeWidth); // Smooth falloff
 }
 
+function isRectangleVertexMesh(vertices, width, height) {
+  if (!vertices || vertices.length !== 4) return false;
+
+  const xValues = [...new Set(vertices.map((vertex) => Math.round(vertex.x)))];
+  const yValues = [...new Set(vertices.map((vertex) => Math.round(vertex.y)))];
+  if (xValues.length !== 2 || yValues.length !== 2) return false;
+
+  const minX = Math.min(...xValues);
+  const maxX = Math.max(...xValues);
+  const minY = Math.min(...yValues);
+  const maxY = Math.max(...yValues);
+  return Math.abs(minX) <= 1 && Math.abs(minY) <= 1
+    && Math.abs(maxX - width) <= 1 && Math.abs(maxY - height) <= 1;
+}
+
 function createSpriteFromXmlWithVertices(image, entry) {
-  if (!entry.vertices || entry.vertices.length < 3) {
+  if (!entry.vertices || entry.vertices.length < 3 || isRectangleVertexMesh(entry.vertices, entry.width, entry.height)) {
     // Fallback to rectangular cut if no vertices
     const canvas = drawCropToCanvas(image, entry.x, entry.y, entry.width, entry.height);
     const correctedCanvas = rotateCanvas(canvas, undoRotation(entry.rotation || 0));
